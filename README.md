@@ -3,6 +3,14 @@
 
 # homebridge-tado-ac
 
+> ## DEPRECATED (no longer maintained)
+>
+> Tado deprecated the authentication API this plugin relies on in March 2025. As a result, this plugin can no longer log in to tado° and is non-functional on any new install.
+>
+> Please migrate to **[@homebridge-plugins/homebridge-tado](https://www.npmjs.com/package/@homebridge-plugins/homebridge-tado)** (version 8.0.0 or later), which is actively maintained, uses tado°'s current device-code authentication flow, and now supports tado° AC devices.
+>
+> No further releases will ship from this repository.
+
 [![Downloads](https://img.shields.io/npm/dt/homebridge-tado-ac.svg?color=critical)](https://www.npmjs.com/package/homebridge-tado-ac)
 [![Version](https://img.shields.io/npm/v/homebridge-tado-ac)](https://www.npmjs.com/package/homebridge-tado-ac)<br>
 [![verified-by-homebridge](https://badgen.net/badge/homebridge/verified/purple)](https://github.com/homebridge/homebridge/wiki/Verified-Plugins) [![Homebridge Discord](https://img.shields.io/discord/432663330281226270?color=728ED5&logo=discord&label=discord)](https://discord.gg/JFhzZcM)<br>

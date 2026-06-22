@@ -196,11 +196,13 @@ module.exports = {
 		
 		overlay.setting.mode = state.mode
 
-		if (!state.targetTemperature)
-			state.targetTemperature = 25
-		overlay.setting.temperature = {
-			fahrenheit: toFahrenheit(state.targetTemperature),
-			celsius: state.targetTemperature
+		if ('temperatures' in device.capabilities[state.mode]) {
+			if (!state.targetTemperature)
+				state.targetTemperature = 25
+			overlay.setting.temperature = {
+				fahrenheit: toFahrenheit(state.targetTemperature),
+				celsius: state.targetTemperature
+			}
 		}
 		
 		if ('swing' in device.capabilities[state.mode])

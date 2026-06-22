@@ -1,15 +1,13 @@
-<img src="https://github.com/nitaybz/homebridge-tado-ac/raw/master/branding/tado_homebridge.png" width="400px">
+<img src="https://github.com/bsrobinson/homebridge-tado-ac/raw/master/branding/tado_homebridge.png" width="400px">
 
 
 # homebridge-tado-ac
 
-> ## DEPRECATED (no longer maintained)
->
-> Tado deprecated the authentication API this plugin relies on in March 2025. As a result, this plugin can no longer log in to tado° and is non-functional on any new install.
->
-> Please migrate to **[@homebridge-plugins/homebridge-tado](https://www.npmjs.com/package/@homebridge-plugins/homebridge-tado)** (version 8.0.0 or later), which is actively maintained, uses tado°'s current device-code authentication flow, and now supports tado° AC devices.
->
-> No further releases will ship from this repository.
+## Forked from https://github.com/nitaybz/homebridge-tado-ac
+
+This fork fixes changes to the Tado Authentication System (partly based on this fork https://github.com/st1cky/homebridge-tado-ac).  I may make this available in npm, with an improved UI, but for now this is my personal working version.
+
+I use this plugin only to enable FAN mode on my Tado Controller AC units (not currently support by @homebridge-plugins/homebridge-tado); the built in Tado HomeKit integration works really well, so I'm leaving that alone - I just want to switch the fan only on sometimes without finding the remove, or the fiddly setting in the Tado app!
 
 [![Downloads](https://img.shields.io/npm/dt/homebridge-tado-ac.svg?color=critical)](https://www.npmjs.com/package/homebridge-tado-ac)
 [![Version](https://img.shields.io/npm/v/homebridge-tado-ac)](https://www.npmjs.com/package/homebridge-tado-ac)<br>
@@ -18,7 +16,7 @@
 
 [Homebridge](https://github.com/nfarina/homebridge) Plugin for tado° Smart AC Control.
 
-<img src="https://raw.githubusercontent.com/nitaybz/homebridge-tado-ac/master/branding/product.png" width="400px">
+<img src="https://raw.githubusercontent.com/bsrobinson/homebridge-tado-ac/master/branding/product.png" width="400px">
 
 ### Requirements
 
@@ -66,7 +64,7 @@ If you don't use Homebridge UI or HOOBS, or if you want to know more about the p
 2. Install this plugin using: `sudo npm install -g homebridge-tado-ac`
 3. Update your configuration file. See `sample-config.json` in this repository for a sample.
 
-\* install from git: `sudo npm install -g git+https://github.com/nitaybz/homebridge-tado-ac.git`
+\* install from git: `sudo npm install -g git+https://github.com/bsrobinson/homebridge-tado-ac.git`
 
 ## Config file
 
@@ -257,7 +255,7 @@ If not set otherwise, the plugin will check for the occupancy status every 10 se
 <br> You can ignore these errors as those are cause by adding unnatural Characteristics like the humidity sensor to the HeaterCooler or the On Characteristic to the Thermostat.
 
 ### Report Issues & Debug
-If you experience any issues with the plugins please refer to the [Issues](https://github.com/nitaybz/homebridge-tado-ac/issues) tab or [Tado-AC Discord channel](https://discord.gg/JFhzZcM) and check if your issue is already described there, if it doesn't, please create a new issue with as much detailed information as you can give (logs are crucial).<br>
+If you experience any issues with the plugins please refer to the [Issues](https://github.com/bsrobinson/homebridge-tado-ac/issues) tab or [Tado-AC Discord channel](https://discord.gg/JFhzZcM) and check if your issue is already described there, if it doesn't, please create a new issue with as much detailed information as you can give (logs are crucial).<br>
 
 if you want to even speed up the process, you can add `"debug": true` to your config, which will give me more details on the logs and speed up fixing the issue.
 
@@ -267,7 +265,3 @@ if you want to even speed up the process, you can add `"debug": true` to your co
 
 **homebridge-tado-ac** is a free plugin under the MIT license. it was developed as a contribution to the homebridge/hoobs community with lots of love and thoughts.
 Creating and maintaining Homebridge plugins consume a lot of time and effort and if you would like to share your appreciation, feel free to "Star" or donate. 
-
-<a target="blank" href="https://www.paypal.me/nitaybz"><img src="https://img.shields.io/badge/PayPal-Donate-blue.svg?logo=paypal"/></a><br>
-<a target="blank" href="https://www.patreon.com/nitaybz"><img src="https://img.shields.io/badge/PATREON-Become a patron-red.svg?logo=patreon"/></a><br>
-<a target="blank" href="https://ko-fi.com/nitaybz"><img src="https://img.shields.io/badge/Ko--Fi-Buy%20me%20a%20coffee-29abe0.svg?logo=ko-fi"/></a>

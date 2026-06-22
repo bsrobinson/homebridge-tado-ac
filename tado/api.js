@@ -3,7 +3,15 @@ let axios = axiosLib.create();
 const qs = require('qs')
 
 const baseURL = 'https://my.tado.com/api/v2'
-let log, storage, token, settings, homeId, username, password
+let log, storage, token, settings, homeId
+
+const clientId = '1bb50063-6b0c-4d11-bd99-387f4a91cc46';
+const deviceAuthURL = 'https://login.tado.com/oauth2/device_authorize';
+const tokenURL = 'https://login.tado.com/oauth2/token';
+const oauthScope = 'home.user offline_access';
+const tokenStorageKey = 'tadoToken';
+const pendingAuthStorageKey = 'tadoPendingDeviceAuth';
+let pendingAuthInstructionsLogged = false;
 
 module.exports = async function (platform) {
 	log = platform.log
@@ -17,10 +25,6 @@ module.exports = async function (platform) {
 		settings = {}
 	}
 
-	// make available for getToken
-	username = platform.username
-	password = platform.password
-	
 	axios.defaults.baseURL = baseURL
 	
 	if (platform.homeId)
@@ -128,9 +132,156 @@ module.exports = async function (platform) {
 }
 
 
-function getRequest(url) {
-	return new Promise(async (resolve, reject) => {
+function getDeviceCode() {
+	return (async () => {
+		const pendingAuth = await storage.getItem(pendingAuthStorageKey)
+		if (pendingAuth && pendingAuth.device_code && pendingAuth.expirationDate > Date.now()) {
+			if (!pendingAuthInstructionsLogged && pendingAuth.verification_uri_complete) {
+				log('tado° authorization is pending.')
+				log(`Open this URL in a browser, sign in, and approve: ${pendingAuth.verification_uri_complete}`)
+				if (pendingAuth.user_code) {
+					log(`If prompted, enter this user code: ${pendingAuth.user_code}`)
+				}
+				pendingAuthInstructionsLogged = true
+			}
 
+			return { device_code: pendingAuth.device_code }
+		}
+
+		const response = await axios.post(deviceAuthURL, qs.stringify({
+			client_id: clientId,
+			scope: oauthScope
+		}))
+
+		const authData = {
+			device_code: response.data.device_code,
+			user_code: response.data.user_code,
+			verification_uri: response.data.verification_uri,
+			verification_uri_complete: response.data.verification_uri_complete,
+			interval: response.data.interval || 5,
+			expirationDate: Date.now() + ((response.data.expires_in || 600) * 1000)
+		}
+
+		await storage.setItem(pendingAuthStorageKey, authData)
+
+		log('tado° authorization required before the plugin can access your account.')
+		log(`Open this URL in a browser, sign in, and approve: ${authData.verification_uri_complete || authData.verification_uri}`)
+		if (authData.user_code) {
+			log(`If prompted, enter this user code: ${authData.user_code}`)
+		}
+		log('After approval, restart Homebridge (or wait for the next refresh cycle).')
+		pendingAuthInstructionsLogged = true
+
+		return { device_code: authData.device_code, interval: authData.interval }
+	})()
+}
+
+function readTokenFromStorage() {
+	return storage.getItem(tokenStorageKey)
+		.catch(error => {
+			log.easyDebug('Error reading token from storage:', error)
+			throw error
+		})
+}
+
+function saveTokenToStorage(tokenData) {
+	return storage.setItem(tokenStorageKey, tokenData)
+		.then(() => {
+			log.easyDebug('Token saved to storage.')
+		})
+		.catch(error => {
+			log.easyDebug('Error saving token to storage:', error)
+			throw error
+		})
+}
+
+function shouldFallbackToDeviceAuth(err) {
+	return Boolean(
+		err &&
+		err.response &&
+		err.response.status === 400 &&
+		err.response.data &&
+		(
+			err.response.data.error === 'invalid_grant' ||
+			err.response.data.error === 'invalid_request' ||
+			err.response.data.error_reason === 'missing_refresh_token'
+		)
+	)
+}
+
+
+async function requestToken() {
+	const storedToken = await readTokenFromStorage()
+
+	if (storedToken && storedToken.key && storedToken.expirationDate > Date.now()) {
+		log.easyDebug('Using existing valid token from storage.')
+		token = storedToken
+		return storedToken.key
+	}
+
+	if (storedToken && storedToken.expirationDate <= Date.now() && storedToken.refresh_token) {
+		log.easyDebug('Token expired, refreshing...')
+		try {
+			const refreshResponse = await axios.post(tokenURL, qs.stringify({
+				client_id: clientId,
+				grant_type: 'refresh_token',
+				refresh_token: storedToken.refresh_token
+			}))
+
+			if (!refreshResponse.data.access_token) {
+				throw new Error('Failed to refresh token')
+			}
+
+			const refreshedToken = {
+				key: refreshResponse.data.access_token,
+				expirationDate: Date.now() + refreshResponse.data.expires_in * 1000,
+				// Some OAuth providers omit refresh_token on refresh. Keep the existing one in that case.
+				refresh_token: refreshResponse.data.refresh_token || storedToken.refresh_token
+			}
+
+			await saveTokenToStorage(refreshedToken)
+			token = refreshedToken
+			return refreshedToken.key
+		} catch (err) {
+			if (shouldFallbackToDeviceAuth(err)) {
+				log.easyDebug('Refresh token is not usable. Falling back to device authorization flow.')
+				await storage.removeItem(tokenStorageKey).catch(() => null)
+			} else {
+				throw err
+			}
+		}
+	} else if (storedToken && !storedToken.refresh_token) {
+		log.easyDebug('Stored token has no refresh token. Starting device authorization flow.')
+		await storage.removeItem(tokenStorageKey).catch(() => null)
+	}
+
+	log.easyDebug('No valid token, requesting a new one...')
+	const deviceCodeData = await getDeviceCode()
+	const response = await axios.post(tokenURL, qs.stringify({
+		client_id: clientId,
+		device_code: deviceCodeData.device_code,
+		grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+		scope: oauthScope
+	}))
+
+	if (!response.data.access_token) {
+		throw new Error('Token endpoint did not return an access token')
+	}
+
+	const newToken = {
+		key: response.data.access_token,
+		expirationDate: Date.now() + response.data.expires_in * 1000,
+		refresh_token: response.data.refresh_token
+	}
+
+	await saveTokenToStorage(newToken)
+	token = newToken
+	await storage.removeItem(pendingAuthStorageKey).catch(() => null)
+	return newToken.key
+}
+
+function getRequest(url) {
+	return (async () => {
 		let headers
 		try {
 			const tokenResponse = await getToken()
@@ -139,32 +290,30 @@ function getRequest(url) {
 			}
 		} catch (err) {
 			log('[GET] The plugin was NOT able to find stored token or acquire one from tado° API')
-			reject(err)
-		}		
-	
-		log.easyDebug(`Creating GET request to tado° API --->`)
+			throw err
+		}
+
+		log.easyDebug('Creating GET request to tado° API --->')
 		log.easyDebug(baseURL + url)
 
-		axios.get(url, { headers })
-			.then(response => {
-				const json = response.data
-				log.easyDebug(`Successful GET response:`)
-				log.easyDebug(JSON.stringify(json))
-				resolve(json)
-			})
-			.catch(err => {
-				log(`ERROR: ${err.message}`)
-				if (err.response)
-					log.easyDebug(err.response.data)
-				reject(err)
-			})
-	})
+		try {
+			const response = await axios.get(url, { headers })
+			const json = response.data
+			log.easyDebug('Successful GET response:')
+			log.easyDebug(JSON.stringify(json))
+			return json
+		} catch (err) {
+			log(`ERROR: ${err.message}`)
+			if (err.response) {
+				log.easyDebug(err.response.data)
+			}
+			throw err
+		}
+	})()
 }
 
 function setRequest(method, url, data) {
-	// eslint-disable-next-line no-async-promise-executor
-	return new Promise(async (resolve, reject) => {
-		
+	return (async () => {
 		let headers
 		try {
 			const tokenResponse = await getToken()
@@ -173,74 +322,54 @@ function setRequest(method, url, data) {
 			}
 		} catch (err) {
 			log('[SET] The plugin was NOT able to find stored token or acquire one from tado° API ---> it will not be able to set the state !!')
-			reject(err)
+			throw err
 		}
-	
+
 		log.easyDebug(`Creating ${method.toUpperCase()} request to tado° API --->`)
 		log.easyDebug(baseURL + url)
-		if (data)
-			log.easyDebug('data: ' +JSON.stringify(data))
+		if (data) {
+			log.easyDebug('data: ' + JSON.stringify(data))
+		}
 
-		axios({url, data, method, headers})
-			.then(response => {
-				const json = response.data
-				log.easyDebug(`Successful ${method.toUpperCase()} response:`)
-				log.easyDebug(JSON.stringify(json))
-				resolve(json)
-			})
-			.catch(err => {
-				log(`ERROR: ${err.message}`)
-				if (err.response)
-					log.easyDebug(err.response.data)
-				reject(err)
-			})
-	})
+		try {
+			const response = await axios({url, data, method, headers})
+			const json = response.data
+			log.easyDebug(`Successful ${method.toUpperCase()} response:`)
+			log.easyDebug(JSON.stringify(json))
+			return json
+		} catch (err) {
+			log(`ERROR: ${err.message}`)
+			if (err.response) {
+				log.easyDebug(err.response.data)
+			}
+			throw err
+		}
+	})()
 }
 
 function getToken() {
-	// eslint-disable-next-line no-async-promise-executor
-	return new Promise(async (resolve, reject) => {
-		
-		if (token && new Date().getTime() < token.expirationDate) {
-			// log.easyDebug('Found valid token in cache')
-			resolve(token.key)
-			return
+	return (async () => {
+		if (token && Date.now() < token.expirationDate) {
+			return token.key
 		}
-	
-		let data = {
-			grant_type: 'password',
-			client_id: 'tado-web-app',
-			client_secret: 'wZaRN7rpjn3FoNyF5IFuxg9uMzYJcvOoQ8QWiIqS3hfk6gLhVlG57j5YNoZL2Rtc',
-			username: username,
-			password: password,
-			scope: 'home.user'
-		}
-		data = qs.stringify(data, { encode: false })
-		const url = `https://auth.tado.com/oauth/token`
 
-		axios.post(url, data)
-			.then(async response => {
-				if (response.data.access_token) {
-					token = {
-						key: response.data.access_token,
-						expirationDate: new Date().getTime() + response.data.expires_in*1000
-					}
-					log.easyDebug('Token successfully acquired from tado° API')
-					// log.easyDebug(token)
-					resolve(token.key)
-				} else {
-					const error = `Could NOT complete the token request -> ERROR: "${response.data}"`
-					log(error)
-					reject(error)
-				}
-			})
-			.catch(err => {
-				const error = `Could NOT complete the token request -> ERROR: "${err.response.data.error_description || err.response.data.error}"`
-				log(error)
-				reject(error)
-			})
-	})
+		try {
+			return await requestToken()
+		} catch (err) {
+			if (err.response && err.response.status === 400 && err.response.data && err.response.data.error === 'authorization_pending') {
+				throw new Error('Authorization is pending. Approve the tado° device link in your browser first.')
+			}
+			if (err.response && err.response.status === 400 && err.response.data && err.response.data.error === 'expired_token') {
+				await storage.removeItem(pendingAuthStorageKey).catch(() => null)
+				throw new Error('Device authorization expired. Trigger a new authorization request by restarting Homebridge.')
+			}
+
+			log.easyDebug('Failed to get token')
+			throw err
+		}
+	})()
 }
+
 
 const get = {
 	HomeId: async () => {

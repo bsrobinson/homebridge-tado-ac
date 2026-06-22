@@ -1,11 +1,11 @@
 {
   "name": "homebridge-tado-ac",
-  "version": "4.2.0",
+  "version": "4.2.1",
   "repository": {
     "type": "git",
-    "url": "git://github.com/nitaybz/homebridge-tado-ac.git"
+    "url": "git://github.com/bsrobinson/homebridge-tado-ac.git"
   },
-  "description": "[DEPRECATED] tado° Smart AC Control plugin for homebridge. Tado deprecated their authentication API in March 2025, this plugin no longer works. Please migrate to @homebridge-plugins/homebridge-tado v8+ which now supports AC.",
+  "description": "tado° Smart AC Control plugin for homebridge: https://github.com/nfarina/homebridge",
   "license": "MIT",
   "keywords": [
     "homebridge-plugin",
@@ -15,9 +15,9 @@
     "smart ac"
   ],
   "bugs": {
-    "url": "https://github.com/nitaybz/homebridge-tado-ac/issues"
+    "url": "https://github.com/bsrobinson/homebridge-tado-ac/issues"
   },
-  "homepage": "https://github.com/nitaybz/homebridge-tado-ac#readme",
+  "homepage": "https://github.com/bsrobinson/homebridge-tado-ac#readme",
   "engines": {
     "node": ">=15.0.0",
     "homebridge": ">=1.5.0"
@@ -35,19 +35,5 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "test": ""
-  },
-  "funding": [
-    {
-      "type": "paypal",
-      "url": "https://paypal.me/nitaybz"
-    },
-    {
-      "type": "patreon",
-      "url": "https://www.patreon.com/nitaybz"
-    },
-    {
-      "type": "kofi",
-      "url": "https://ko-fi.com/nitaybz"
-    }
-  ]
+  }
 }

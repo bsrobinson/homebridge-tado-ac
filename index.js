@@ -30,15 +30,7 @@ class TadoACPlatform {
 
 		// ~~~~~~~~~~~~~~~~~~~~~ tado° Specials ~~~~~~~~~~~~~~~~~~~~~ //
 		
-		this.username = config['username']
-		this.password = config['password']
-		
-		if (!this.username || !this.password) {
-			this.log('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX  --  ERROR  --  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\n')
-			this.log('Can\'t start homebridge-tado-ac plugin without username and password !!\n')
-			this.log('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\n')
-			return
-		}
+
 		this.homeId = config['homeID'] || false
 		this.tadoMode = config['tadoMode'] || 'MANUAL'
 		this.durationInMinutes = config['durationInMinutes'] || 90
@@ -84,7 +76,7 @@ class TadoACPlatform {
 					return previous + ' ' + current
 				}))
 		}
-		
+
 		this.api.on('didFinishLaunching', async () => {
 
 			await this.storage.init({

@@ -3,22 +3,10 @@
 	"pluginType": "platform",
 	"singular": true,
 	"headerDisplay": "Homebridge plugin for tado° - Smart AC Control",
-	"footerDisplay": "Created by @nitaybz",
+	"footerDisplay": "Authorization: restart Homebridge, then follow the tado° authorization URL printed in logs.",
 	"schema": {
 		"type": "object",
 		"properties": {
-			"username": {
-				"title": "Username",
-				"description": "Your tado° account username",
-				"type": "string",
-				"required": true
-			},
-			"password": {
-				"title": "Password",
-				"description": "Your tado° account password",
-				"type": "string",
-				"required": true
-			},
 			"occupancySensorsEnabled": {
 				"title": "Occupancy Sensors",
 				"description": "Show occupancy sensors for each tado° user connected to your home",
@@ -63,7 +51,7 @@
 				"required": false
 			},
 			"tadoMode": {
-				"title": "tado° Mode",
+				"title": "Tado° Mode",
 				"type": "string",
 				"default": "MANUAL",
 				"required": true,
@@ -170,12 +158,6 @@
 		}
 	},
 	"layout": [
-		{
-			"key": "username"
-		},
-		{
-			"key": "password"
-		},
 		{
 			"key": "tadoMode"
 		},

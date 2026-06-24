@@ -12,9 +12,15 @@ module.exports = (device, platform) => {
 
 	return {
 		get: (target, prop) => {
-			// check for last update and refresh state if needed
-			if (!platform.setProcessing)
-				platform.refreshState.ac()
+			// Avoid API floods from frequent HomeKit reads; rely on polling when enabled.
+			if (!platform.setProcessing && !platform.pollingInterval) {
+				const now = Date.now()
+				const minRefreshIntervalMs = 15000
+				if (!platform.lastOnDemandRefresh || (now - platform.lastOnDemandRefresh) >= minRefreshIntervalMs) {
+					platform.lastOnDemandRefresh = now
+					platform.refreshState.ac()
+				}
+			}
 
 			// return a function to update state (multiple properties)
 			if (prop === 'update')

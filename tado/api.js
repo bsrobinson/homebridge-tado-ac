@@ -12,6 +12,43 @@ const oauthScope = 'home.user offline_access';
 const tokenStorageKey = 'tadoToken';
 const pendingAuthStorageKey = 'tadoPendingDeviceAuth';
 let pendingAuthInstructionsLogged = false;
+let tokenRequestPromise = null;
+let nextAllowedRequestAt = 0;
+
+function parseRateLimitResetSeconds(headers) {
+	if (!headers)
+		return null
+
+	const rateLimitHeader = headers.ratelimit || headers['ratelimit']
+	if (!rateLimitHeader || typeof rateLimitHeader !== 'string')
+		return null
+
+	const match = rateLimitHeader.match(/t=(\d+)/)
+	if (!match)
+		return null
+
+	const seconds = parseInt(match[1], 10)
+	return Number.isNaN(seconds) ? null : seconds
+}
+
+function updateRateLimitWindowFromError(err) {
+	if (!(err && err.response && err.response.status === 429))
+		return
+
+	const waitSeconds = parseRateLimitResetSeconds(err.response.headers)
+	if (waitSeconds === null)
+		return
+
+	nextAllowedRequestAt = Date.now() + (waitSeconds * 1000)
+	log(`tado° API rate limit reached. Backing off requests for ~${waitSeconds} seconds.`)
+}
+
+function assertWithinRateLimitWindow() {
+	if (nextAllowedRequestAt > Date.now()) {
+		const waitSeconds = Math.ceil((nextAllowedRequestAt - Date.now()) / 1000)
+		throw new Error(`Tado API daily rate limit is active. Retry in about ${waitSeconds} seconds.`)
+	}
+}
 
 module.exports = async function (platform) {
 	log = platform.log
@@ -44,13 +81,16 @@ module.exports = async function (platform) {
 			try {
 				const temperatureUnit = await get.TemperatureUnit()
 				const zones = await get.Zones()
-				const installations = await get.Installations()
+				const installations = settings.installations || await get.Installations()
 
 				const devices = zones.map(async zone => {
 					let zoneState, capabilities
 					try {
 						zoneState = await get.State(zone.id)
-						capabilities = await get.ZoneCapabilities(zone.id)
+						if (settings.capabilities && settings.capabilities[zone.id])
+							capabilities = settings.capabilities[zone.id]
+						else
+							capabilities = await get.ZoneCapabilities(zone.id)
 					} catch (err) {
 						log(err)
 						log(`COULD NOT get Zone ${zone.id} state and capabilities !! skipping device...`)
@@ -136,9 +176,11 @@ function getDeviceCode() {
 	return (async () => {
 		const pendingAuth = await storage.getItem(pendingAuthStorageKey)
 		if (pendingAuth && pendingAuth.device_code && pendingAuth.expirationDate > Date.now()) {
-			if (!pendingAuthInstructionsLogged && pendingAuth.verification_uri_complete) {
+			if (!pendingAuthInstructionsLogged) {
+				const authUrl = pendingAuth.verification_uri_complete || pendingAuth.verification_uri
 				log('tado° authorization is pending.')
-				log(`Open this URL in a browser, sign in, and approve: ${pendingAuth.verification_uri_complete}`)
+				if (authUrl)
+					log(`Open this URL in a browser, sign in, and approve: ${authUrl}`)
 				if (pendingAuth.user_code) {
 					log(`If prompted, enter this user code: ${pendingAuth.user_code}`)
 				}
@@ -297,12 +339,14 @@ function getRequest(url) {
 		log.easyDebug(baseURL + url)
 
 		try {
+			assertWithinRateLimitWindow()
 			const response = await axios.get(url, { headers })
 			const json = response.data
 			log.easyDebug('Successful GET response:')
 			log.easyDebug(JSON.stringify(json))
 			return json
 		} catch (err) {
+			updateRateLimitWindowFromError(err)
 			log(`ERROR: ${err.message}`)
 			if (err.response) {
 				log.easyDebug(err.response.data)
@@ -332,12 +376,14 @@ function setRequest(method, url, data) {
 		}
 
 		try {
+			assertWithinRateLimitWindow()
 			const response = await axios({url, data, method, headers})
 			const json = response.data
 			log.easyDebug(`Successful ${method.toUpperCase()} response:`)
 			log.easyDebug(JSON.stringify(json))
 			return json
 		} catch (err) {
+			updateRateLimitWindowFromError(err)
 			log(`ERROR: ${err.message}`)
 			if (err.response) {
 				log.easyDebug(err.response.data)
@@ -353,8 +399,14 @@ function getToken() {
 			return token.key
 		}
 
+		if (!tokenRequestPromise) {
+			tokenRequestPromise = requestToken().finally(() => {
+				tokenRequestPromise = null
+			})
+		}
+
 		try {
-			return await requestToken()
+			return await tokenRequestPromise
 		} catch (err) {
 			if (err.response && err.response.status === 400 && err.response.data && err.response.data.error === 'authorization_pending') {
 				throw new Error('Authorization is pending. Approve the tado° device link in your browser first.')
